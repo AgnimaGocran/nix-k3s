@@ -8,11 +8,25 @@ Edit `hostVars` inside `flake.nix` before deploying:
 
 - `HOSTNAME` – desired hostname for the VDS node.
 - `PUBLIC_IP` – server IPv4 address (also used for optional static networking).
-- `DOMAIN` – DNS name that should resolve to `PUBLIC_IP` for ingress testing.
+- `DOMAIN` – optional DNS name routed to the node. When set, the configuration deploys a lightweight Traefik `whoami` status endpoint on that host to verify ACME automatically.
 - `LE_EMAIL` – e-mail passed to Let’s Encrypt/ACME.
 - `SSH_PUBLIC_KEY` – root’s authorized key. The same key is reused by the local VM by default.
 - Optional static networking: set `hostVars.vds.network.static.enable = true` and adjust `interface`, `prefixLength`, `gateway`, and `dns` if DHCP is not available on the VDS.
 - Disk layout placeholders: adjust `hostVars.*.disk.rootDevice` and `.grubDevice` to match the actual block devices that should hold `/` and the bootloader target on both the VM image and the VDS.
+
+## Quick deployment helper
+
+The repository ships with `./bootstrap.sh`, an interactive helper that guides you through:
+
+1. Accepting target IP (required) and optional `--ssh-user USER` flag (defaults to `root`).
+2. Asking for hostname/domain/Let’s Encrypt email overrides (press Enter to keep the defaults/skip the domain).
+3. Generating an ed25519 SSH keypair if you don’t already have one, and running `ssh-copy-id` once so password prompts disappear.
+4. Exporting the collected values via environment variables (`NIX_K3S_*`) and launching `nixos-anywhere` directly:
+   ```bash
+   ./bootstrap.sh PUBLIC_IP
+   ```
+
+Under the hood the flake reads those environment variables, so you can also set them manually if you prefer (`NIX_K3S_PUBLIC_IP`, `NIX_K3S_HOSTNAME`, `NIX_K3S_DOMAIN`, `NIX_K3S_LE_EMAIL`, `NIX_K3S_SSH_KEY`).
 
 ## A) Local VM smoke test
 
@@ -49,12 +63,13 @@ This keeps upgrades reproducible and avoids compiling on the low-resource VDS.
 
 ## D) Validating Traefik + Let’s Encrypt
 
-1. Point the `DOMAIN` A record to `PUBLIC_IP` and wait for DNS propagation.
-2. Deploy any minimal HTTP service (e.g. `whoami`) plus an Ingress or IngressRoute for `DOMAIN` inside the cluster.
-3. Verify HTTP/HTTPS:
+If the `DOMAIN` variable (or installer prompt) is filled, NixOS auto-deploys a `status-check` namespace with the Traefik `whoami` pod, Service, and IngressRoute bound to that host. Otherwise you can still deploy your own test workload.
+
+1. Point an A record for your chosen domain to `PUBLIC_IP` and wait for DNS propagation.
+2. Verify HTTP/HTTPS:
    ```bash
-   curl -I http://DOMAIN
-   curl -I https://DOMAIN
+   curl -I http://your-domain.example
+   curl -I https://your-domain.example
    ```
    The HTTPS response must present a valid Let’s Encrypt certificate.
 4. Ensure persistence works:

@@ -7,14 +7,20 @@
     let
       system = "x86_64-linux";
       lib = nixpkgs.lib;
+      getEnvOr =
+        name: fallback:
+        let
+          value = builtins.getEnv name;
+        in
+        if value != "" then value else fallback;
 
       hostVars = {
         vm = {
           hostname = "k3s-vm";
           publicIP = "127.0.0.1";
-          domain = "vm.local";
-          leEmail = "LE_EMAIL";
-          sshPublicKey = "SSH_PUBLIC_KEY";
+          domain = "";
+          leEmail = getEnvOr "NIX_K3S_LE_EMAIL" "LE_EMAIL";
+          sshPublicKey = getEnvOr "NIX_K3S_SSH_KEY" "SSH_PUBLIC_KEY";
           disk = {
             rootDevice = "/dev/disk/by-label/nixos";
             grubDevice = "/dev/vda";
@@ -35,11 +41,11 @@
         };
 
         vds = {
-          hostname = "HOSTNAME";
-          publicIP = "PUBLIC_IP";
-          domain = "DOMAIN";
-          leEmail = "LE_EMAIL";
-          sshPublicKey = "SSH_PUBLIC_KEY";
+          hostname = getEnvOr "NIX_K3S_HOSTNAME" "HOSTNAME";
+          publicIP = getEnvOr "NIX_K3S_PUBLIC_IP" "PUBLIC_IP";
+          domain = getEnvOr "NIX_K3S_DOMAIN" "";
+          leEmail = getEnvOr "NIX_K3S_LE_EMAIL" "LE_EMAIL";
+          sshPublicKey = getEnvOr "NIX_K3S_SSH_KEY" "SSH_PUBLIC_KEY";
           disk = {
             rootDevice = "/dev/disk/by-label/nixos";
             grubDevice = "/dev/vda";
@@ -51,7 +57,7 @@
             static = {
               enable = false;
               interface = "ens3";
-              address = "PUBLIC_IP";
+              address = getEnvOr "NIX_K3S_PUBLIC_IP" "PUBLIC_IP";
               prefixLength = 24;
               gateway = "GATEWAY";
               dns = [ "1.1.1.1" "8.8.8.8" ];
@@ -65,6 +71,7 @@
         ./modules/k3s-single.nix
         ./modules/traefik-config.nix
         ./modules/maintenance.nix
+        ./modules/status-ingress.nix
       ];
 
       hosts = {
